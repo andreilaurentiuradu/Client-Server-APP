@@ -1,17 +1,17 @@
-CC = g++
-CCFLAGS = -Wall -Wextra -std=c++17 -O0 -lm
+CFLAGS = -Wall -g -Werror -Wno-error=unused-variable
 
-build: server subscriber
+all: server subscriber
 
-run-server:
-	./server
+common.o: common.c
+	gcc $(CFLAGS) -c common.c
 
-run-subscriber:
-	./subscriber
+# Compileaza server.c
+server: server.c common.o
+	gcc $(CFLAGS) server.c common.o -o server
 
-server: server.cpp
-	$(CPPC) -g server.cpp -o server $(CFLAGS)
-	
-subscriber: subscriber.cpp
-	$(CPPC) -g subscriber.cpp -o subscriber $(CFLAGS)
+# Compileaza client.c
+subscriber: subscriber.c common.o
+	gcc $(CFLAGS) subscriber.c common.o -o subscriber
 
+clean:
+	rm -rf server subscriber *.o *.dSYM
