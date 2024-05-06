@@ -24,19 +24,51 @@ void run_client(int sockfd, char *argv[]) {
     char buf[MSG_MAXSIZE + 1];
     memset(buf, 0, MSG_MAXSIZE + 1);
 
-    struct chat_packet sent_packet;
+    // id-ul
     send(sockfd, argv[1], strlen(argv[1]), 0);
-    send(sockfd, argv[2], strlen(argv[2]), 0);
-    send(sockfd, argv[3], strlen(argv[3]), 0);
-    // while (fgets(buf, sizeof(buf), stdin) && !isspace(buf[0])) {
-    //     sent_packet.len = strlen(buf) + 1;
-    //     strcpy(sent_packet.message, buf);
 
-    //     // Trimitem pachetul la server.
-    //     send_all(sockfd, &sent_packet, sizeof(sent_packet));
+    struct pollfd poll_fds[2];
+    int num_sockets = 2;
+    int rc;
+    struct chat_packet sent_packet;
+    struct chat_packet received_packet;
 
-    //     printf("%s\n", recv_packet.message);
-    // }
+    // Adaugam noul file descriptor (socketul pe care se asculta conexiuni) in
+    // multimea poll_fds
+    poll_fds[0].fd = sockfd;
+    poll_fds[0].events = POLLIN;
+
+    poll_fds[1].fd = STDIN_FILENO;
+    poll_fds[1].events = POLLIN;
+
+    while (1) {
+        // Asteptam sa primim ceva pe unul dintre cei num_sockets socketi
+        rc = poll(poll_fds, num_sockets, -1);
+        DIE(rc < 0, "poll");
+
+        for (int i = 0; i < num_sockets; i++) {
+            if (poll_fds[i].revents & POLLIN) {
+                // daca primesc mesaj de la server
+                if (poll_fds[i].fd == sockfd) {
+                    // mesajul
+                    rc = recv_all(sockfd, &received_packet,
+                                  sizeof(received_packet));
+                    if (rc <= 0) {
+                        return;
+                    }
+                } else {
+                    printf("intra?\n");
+                    // mesaje de la tastatura
+                    char buff_msg[1501];
+                    fgets(buff_msg, 1500, stdin);
+
+                    if (strncmp("exit", buff_msg, 4) == 0) {
+                        return;
+                    }
+                }
+            }
+        }
+    }
 }
 
 int main(int argc, char *argv[]) {
