@@ -30,10 +30,10 @@ void run_client(int sockfd, char *argv[]) {
     struct pollfd poll_fds[2];
     int num_sockets = 2;
     int rc;
-    struct chat_packet sent_packet;
+    // struct chat_packet sent_packet;
     struct chat_packet received_packet;
 
-    // Adaugam noul file descriptor (socketul pe care se asculta conexiuni) in
+    // adaugam noul file descriptor (socketul pe care se asculta conexiuni) in
     // multimea poll_fds
     poll_fds[0].fd = sockfd;
     poll_fds[0].events = POLLIN;
@@ -42,7 +42,7 @@ void run_client(int sockfd, char *argv[]) {
     poll_fds[1].events = POLLIN;
 
     while (1) {
-        // Asteptam sa primim ceva pe unul dintre cei num_sockets socketi
+        // asteptam sa primim ceva pe unul dintre cei num_sockets socketi
         rc = poll(poll_fds, num_sockets, -1);
         DIE(rc < 0, "poll");
 
@@ -57,7 +57,6 @@ void run_client(int sockfd, char *argv[]) {
                         return;
                     }
                 } else {
-                    printf("intra?\n");
                     // mesaje de la tastatura
                     char buff_msg[1501];
                     fgets(buff_msg, 1500, stdin);
@@ -72,6 +71,7 @@ void run_client(int sockfd, char *argv[]) {
 }
 
 int main(int argc, char *argv[]) {
+    // setam bufferul
     setvbuf(stdout, NULL, _IONBF, BUFSIZ);
     // ./subscriber id ip port
     if (argc != 4) {
@@ -79,16 +79,16 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    // Parsam port-ul ca un numar
+    // parsam port-ul ca un numar
     uint16_t port;
     int rc = sscanf(argv[3], "%hu", &port);
     DIE(rc != 1, "Given port is invalid");
 
-    // Obtinem un socket TCP pentru conectarea la server
+    // obtinem un socket TCP pentru conectarea la server
     const int sockfd = socket(AF_INET, SOCK_STREAM, 0);
     DIE(sockfd < 0, "socket");
 
-    // Completăm in serv_addr adresa serverului, familia de adrese si portul
+    // completăm in serv_addr adresa serverului, familia de adrese si portul
     // pentru conectare
     struct sockaddr_in serv_addr;
     socklen_t socket_len = sizeof(struct sockaddr_in);
@@ -99,13 +99,14 @@ int main(int argc, char *argv[]) {
     rc = inet_pton(AF_INET, argv[2], &serv_addr.sin_addr.s_addr);
     DIE(rc <= 0, "inet_pton");
 
-    // Ne conectăm la server
+    // ne conectăm la server
     rc = connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr));
     DIE(rc < 0, "connect");
 
+    // pornim clientul
     run_client(sockfd, argv);
 
-    // Inchidem conexiunea si socketul creat
+    // inchidem conexiunea si socketul creat
     close(sockfd);
 
     return 0;
