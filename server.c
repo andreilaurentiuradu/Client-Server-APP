@@ -1,10 +1,3 @@
-/*
- * Protocoale de comunicatii
- * Laborator 7 - TCP
- * Echo Server
- * server.c
- */
-
 #include <arpa/inet.h>
 #include <errno.h>
 #include <netinet/in.h>
@@ -23,23 +16,16 @@
 #define MAX_CONNECTIONS 32
 #define MAX_LEN_ID 10
 
-// void add_topic(client_topics *client, const char *topic) {
-//     client->topics =
-//         realloc(client->topics, (client->nr_topics + 1) * sizeof(char *));
-//     client->topics[client->nr_topics] = malloc(strlen(topic) + 1);
-//     strcpy(client->topics[client->nr_topics], topic);
-//     client->nr_topics++;
-// }
-
 // pornim serverul
 void run_server(int listen_tcp, int listen_udp) {
-    // struct pollfd poll_fds[MAX_CONNECTIONS];
+    // multimea conexiunilor
     struct pollfd *poll_fds = malloc(sizeof(struct pollfd) * 3);
+
     // id-urile clientilor
     char **ids = malloc(sizeof(char *) * 3);
+
     // topicurile disponibile pentru fiecare client
     client_topics cl_topics[100];
-
     int nr_clients = 0;
     int num_sockets = 3;
     int rc;
@@ -68,9 +54,9 @@ void run_server(int listen_tcp, int listen_udp) {
         // asteptam sa primim ceva pe unul dintre cei num_sockets socketi
         rc = poll(poll_fds, num_sockets, -1);
         DIE(rc < 0, "poll");
+
         // parcurgem multimea poll_fds
         for (int i = 0; i < num_sockets; i++) {
-            // printf("num_sok %d\n", num_sockets);
             if (poll_fds[i].revents & POLLIN) {
                 if (poll_fds[i].fd == listen_tcp) {
                     /* am primit o cerere de conexiune pe socketul de
@@ -82,8 +68,8 @@ void run_server(int listen_tcp, int listen_udp) {
                         listen_tcp, (struct sockaddr *)&cli_addr, &cli_len);
                     DIE(cfd1 < 0, "accept");
 
-                    int flag = 1;
                     // dezactivam algoritmul lui Nagle
+                    int flag = 1;
                     DIE(setsockopt(cfd1, IPPROTO_TCP, TCP_NODELAY, &flag,
                                    sizeof(int)) < 0,
                         "Nagle error\n");
@@ -137,11 +123,7 @@ void run_server(int listen_tcp, int listen_udp) {
                     ++nr_clients;
 
                     // cream o noua lista de topicuri pentru noul client
-                    // cl_topics = malloc(sizeof(client_topics));
                     cl_topics[nr_clients - 1].nr_topics = 0;
-                    // cl_topics[nr_clients - 1].topics = malloc(sizeof(char
-                    // *));
-
                     strcpy(cl_topics[nr_clients - 1].id,
                            ids[3 + nr_clients - 1]);
 
@@ -162,6 +144,7 @@ void run_server(int listen_tcp, int listen_udp) {
                         free(poll_fds);
                         return;
                     }
+
                 } else if (poll_fds[i].fd == listen_udp) {
                     /* am primit o cerere de conexiune pe socketul de
                    listen_udp, pe care o acceptam */
@@ -198,7 +181,7 @@ void run_server(int listen_tcp, int listen_udp) {
                                 sprintf(sent_packet.payload, "%d", number);
                             }
                             break;
-                        // SHORRT_REAL
+                        // SHORT_REAL
                         case 1:
                             uint16_t number2 =
                                 ntohs(*((uint16_t *)received_packet.payload));
@@ -277,13 +260,9 @@ void run_server(int listen_tcp, int listen_udp) {
                     } else {
                         // id - ul ids[i]
                         for (int w = 0; w < nr_clients; ++w) {
-                            // caut clientul cu id-ul potrivit in
-                            // structura
-                            // ce retine topicurile pentru fiecare
-                            // client
+                            // caut clientul cu id-ul potrivit in structura
+                            // ce retine topicurile pentru fiecare client
                             if (strcmp(cl_topics[w].id, ids[i]) == 0) {
-                                // add_topic(&cl_topics[w],
-                                //           received_packet.topic);
                                 // verificam daca clientul este deja abonat
                                 // la topicul acela
                                 int found = 0;
@@ -387,7 +366,8 @@ int main(int argc, char *argv[]) {
     DIE(rc < 0, "bind");
 
     // dezactivam algoritmul lui Nagle
-    DIE(setsockopt(listen_tcp, IPPROTO_TCP, TCP_NODELAY, &enable, sizeof(int)) <
+    int flag = 1;
+    DIE(setsockopt(listen_tcp, IPPROTO_TCP, TCP_NODELAY, &flag, sizeof(int)) <
             0,
         "Nagle error\n");
 

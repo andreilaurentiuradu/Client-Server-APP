@@ -30,7 +30,6 @@ void run_client(int sockfd, char *argv[]) {
     struct pollfd poll_fds[2];
     int num_sockets = 2;
     int rc;
-    // struct chat_packet sent_packet;
     udp_msg received_packet;
 
     // adaugam noul file descriptor (socketul pe care se asculta conexiuni) in
@@ -46,6 +45,7 @@ void run_client(int sockfd, char *argv[]) {
         rc = poll(poll_fds, num_sockets, -1);
         DIE(rc < 0, "poll");
 
+        // parcurgem socketurile si vedem conexiunile deschise
         for (int i = 0; i < num_sockets; i++) {
             if (poll_fds[i].revents & POLLIN) {
                 // daca primesc mesaj de la server
@@ -57,6 +57,8 @@ void run_client(int sockfd, char *argv[]) {
                         return;
                     }
 
+                    // in functie de tipul datelor primite trimitem un mesaj
+                    // clientului
                     switch (received_packet.data_type) {
                         case 0:
                             printf("%s:%u - %s - %s - %s\n",
@@ -89,23 +91,30 @@ void run_client(int sockfd, char *argv[]) {
                     fgets(buff_msg, 1500, stdin);
                     buff_msg[strlen(buff_msg) - 1] = '\0';
 
+                    // pentru inchiderea serverului
                     if (strncmp("exit", buff_msg, 4) == 0) {
                         return;
                     } else if (strncmp("subscribe", buff_msg, 9) == 0) {
+                        // daca un client vrea sa se aboneze
                         udp_msg_received subscribe_packet;
                         strcpy(subscribe_packet.topic, buff_msg + 10);
-                        // tipul pachetului pe care il trimit
+
+                        // tipul pachetului pe care il trimit(subscribe)
                         subscribe_packet.data_type = 1;
+
                         // trimitem pachetul
                         send(sockfd, &subscribe_packet,
                              sizeof(subscribe_packet), 0);
                         printf("Subscribed to topic %s\n",
                                subscribe_packet.topic);
                     } else if (strncmp("unsubscribe", buff_msg, 11) == 0) {
+                        // daca un client vrea sa se dezaboneze
                         udp_msg_received unsubscribe_packet;
                         strcpy(unsubscribe_packet.topic, buff_msg + 12);
-                        // tipul pachetului pe care il trimit
+
+                        // tipul pachetului pe care il trimit(unsubscribe)
                         unsubscribe_packet.data_type = 0;
+
                         // trimitem pachetul
                         send(sockfd, &unsubscribe_packet,
                              sizeof(unsubscribe_packet), 0);
@@ -121,6 +130,7 @@ void run_client(int sockfd, char *argv[]) {
 int main(int argc, char *argv[]) {
     // setam bufferul
     setvbuf(stdout, NULL, _IONBF, BUFSIZ);
+
     // ./subscriber id ip port
     if (argc != 4) {
         printf("\n ID: %s <ip> <port>\n", argv[0]);
