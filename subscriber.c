@@ -31,7 +31,7 @@ void run_client(int sockfd, char *argv[]) {
     int num_sockets = 2;
     int rc;
     // struct chat_packet sent_packet;
-    struct chat_packet received_packet;
+    udp_msg received_packet;
 
     // adaugam noul file descriptor (socketul pe care se asculta conexiuni) in
     // multimea poll_fds
@@ -53,16 +53,35 @@ void run_client(int sockfd, char *argv[]) {
                     // mesajul
                     rc = recv_all(sockfd, &received_packet,
                                   sizeof(received_packet));
+                    printf("%d\n", (int)received_packet.data_type);
                     if (rc <= 0) {
                         return;
+                    }
+
+                    if (received_packet.data_type == 0) {
+                        printf("%s:%u - %s - %s - %s\n",
+                               inet_ntoa(received_packet.ip_address),
+                               received_packet.port, received_packet.topic,
+                               "INT", received_packet.payload);
                     }
                 } else {
                     // mesaje de la tastatura
                     char buff_msg[1501];
                     fgets(buff_msg, 1500, stdin);
+                    buff_msg[strlen(buff_msg) - 1] = '\0';
 
                     if (strncmp("exit", buff_msg, 4) == 0) {
                         return;
+                    } else if (strncmp("subscribe", buff_msg, 9) == 0) {
+                        udp_msg_received subscribe_packet;
+                        strcpy(subscribe_packet.topic, buff_msg + 10);
+                        // tipul pachetului pe care il trimit
+                        subscribe_packet.data_type = 1;
+                        // trimitem pachetul
+                        send(sockfd, &subscribe_packet,
+                             sizeof(subscribe_packet), 0);
+                        printf("Subscribed to topic %s\n",
+                               subscribe_packet.topic);
                     }
                 }
             }

@@ -22,20 +22,29 @@
 #define MAX_CONNECTIONS 32
 #define MAX_LEN_ID 10
 
+// void add_topic(client_topics *client, const char *topic) {
+//     client->topics =
+//         realloc(client->topics, (client->nr_topics + 1) * sizeof(char *));
+//     client->topics[client->nr_topics] = malloc(strlen(topic) + 1);
+//     strcpy(client->topics[client->nr_topics], topic);
+//     client->nr_topics++;
+// }
+
 // pornim serverul
 void run_server(int listen_tcp, int listen_udp) {
     // struct pollfd poll_fds[MAX_CONNECTIONS];
     struct pollfd *poll_fds = malloc(sizeof(struct pollfd) * 3);
     // id-urile clientilor
-    // char ids[MAX_CONNECTIONS][MAX_LEN_ID];
     char **ids = malloc(sizeof(char *) * 3);
+    // topicurile disponibile pentru fiecare client
+    client_topics cl_topics[100];
 
     int nr_clients = 0;
-    int num_sockets = 2;
+    int num_sockets = 3;
     int rc;
-    struct chat_packet received_packet;
+    udp_msg_received received_packet;
 
-    // aetam socket-ul listenfd pentru ascultare
+    // setam socket-ul listenfd pentru ascultare
     rc = listen(listen_tcp, MAX_CONNECTIONS);
     DIE(rc < 0, "listen");
 
@@ -58,9 +67,9 @@ void run_server(int listen_tcp, int listen_udp) {
         // asteptam sa primim ceva pe unul dintre cei num_sockets socketi
         rc = poll(poll_fds, num_sockets, -1);
         DIE(rc < 0, "poll");
-
         // parcurgem multimea poll_fds
         for (int i = 0; i < num_sockets; i++) {
+            // printf("num_sok %d\n", num_sockets);
             if (poll_fds[i].revents & POLLIN) {
                 if (poll_fds[i].fd == listen_tcp) {
                     /* am primit o cerere de conexiune pe socketul de
@@ -78,31 +87,33 @@ void run_server(int listen_tcp, int listen_udp) {
                     rc = recv(cfd1, buffer_msg, 1500, 0);
                     DIE(rc < 0, "read");
 
-                    // // verificam daca id-ul exista deja
-                    // int closed = 0;
-                    // for (int j = 2; j <= nr_clients; ++j) {
-                    //     if (strcmp(ids[j], ids[nr_clients]) == 0) {
-                    //         printf("Client %s already connected.\n",
-                    //                ids[nr_clients]);
+                    // verificam daca id-ul exista deja
+                    int closed = 0;
+                    for (int j = 3; j < 3 + nr_clients; ++j) {
+                        if (strcmp(ids[j], buffer_msg) == 0) {
+                            printf("Client %s already connected.\n", ids[j]);
 
-                    //         send(cfd1, "exit\n", strlen("exit\n"), 0);
-                    //         close(cfd1);
-                    //         memset(ids[nr_clients], 0,
-                    //         sizeof(ids[nr_clients])); closed = 1; break;
-                    //     }
-                    // }
-                    // if (closed == 1) {
-                    //     return;
-                    // }
-                    ids = realloc(ids, sizeof(char *) * (3 + nr_clients));
-                    ids[2 + nr_clients] = malloc(strlen(buffer_msg) + 1);
-                    if (ids[2 + nr_clients] == NULL) {
+                            // opresc conexiunea cu clientul
+                            close(cfd1);
+                            closed = 1;
+                            break;
+                        }
+                    }
+                    if (closed == 1) {
+                        continue;
+                    }
+
+                    ids = realloc(ids, sizeof(char *) * (3 + nr_clients + 1));
+                    ids[3 + nr_clients] = malloc(strlen(buffer_msg) + 1);
+
+                    // verificam daca e null
+                    if (ids[3 + nr_clients] == NULL) {
                         printf("Eroare la alocarea memoriei pentru ID.\n");
                         exit(EXIT_FAILURE);
                     }
 
                     // copiem id-ul clientului in vectorul de id-uri
-                    strcpy(ids[2 + nr_clients], buffer_msg);
+                    strcpy(ids[3 + nr_clients], buffer_msg);
 
                     /* adaugam noul socket intors de accept() la multimea
                     descriptorilor de citire */
@@ -117,6 +128,16 @@ void run_server(int listen_tcp, int listen_udp) {
                            inet_ntoa(cli_addr.sin_addr),
                            ntohs(cli_addr.sin_port));
                     ++nr_clients;
+
+                    // cream o noua lista de topicuri pentru noul client
+                    // cl_topics = malloc(sizeof(client_topics));
+                    cl_topics[nr_clients - 1].nr_topics = 0;
+                    // cl_topics[nr_clients - 1].topics = malloc(sizeof(char
+                    // *));
+
+                    strcpy(cl_topics[nr_clients - 1].id,
+                           ids[3 + nr_clients - 1]);
+
                     break;
                 } else if (poll_fds[i].fd == STDIN_FILENO) {
                     // primim mesaje de la tastatura
@@ -126,7 +147,7 @@ void run_server(int listen_tcp, int listen_udp) {
 
                     // inchidem serverul
                     if (strncmp("exit", buff_msg, 4) == 0) {
-                        for (int j = 2; j < num_sockets; ++j) {
+                        for (int j = 3; j < num_sockets; ++j) {
                             free(ids[j]);
                             close(poll_fds[j].fd);
                         }
@@ -135,22 +156,63 @@ void run_server(int listen_tcp, int listen_udp) {
                         return;
                     }
                 } else if (poll_fds[i].fd == listen_udp) {
-                    /* am primit o cerere de conexiune pe socketul de
-                   listen_udp, pe care o acceptam */
-                    //    TODO
-                    socklen_t udp_len = 0;
-                    struct sockaddr_in serv_addr;
-                    int rc_udp = recvfrom(
-                        listen_udp, &received_packet, sizeof(received_packet),
-                        0, (struct sockaddr *)&serv_addr, &udp_len);
-                    DIE(rc_udp < 0, "recv");
+                    //     /* am primit o cerere de conexiune pe socketul de
+                    //    listen_udp, pe care o acceptam */
+                    //     socklen_t udp_len = 0;
 
+                    //     struct sockaddr_in serv_addr;
+                    //     int rc_udp = recvfrom(
+                    //         listen_udp, &received_packet,
+                    //         sizeof(received_packet), 0, (struct sockaddr
+                    //         *)&serv_addr, &udp_len);
+                    //     DIE(rc_udp < 0, "recv");
+
+                    //     // cream packetul udp de sent
+                    //     udp_msg sent_packet;
+                    //     sent_packet.ip_address = serv_addr.sin_addr;
+                    //     sent_packet.port = htons(serv_addr.sin_port);
+                    //     memset(sent_packet.topic, 0, 50);
+                    //     strcpy(sent_packet.topic, received_packet.topic);
+
+                    //     // INT
+                    //     if (received_packet.data_type == 0) {
+                    //         // bitul de semn
+                    //         char bit_sgn = received_packet.payload[0];
+                    //         // numarul
+                    //         uint32_t number =
+                    //             ntohl(*((uint32_t *)(received_packet.payload
+                    //             + 1)));
+
+                    //         // daca e negativ
+                    //         if (bit_sgn == 1) {
+                    //             number = -number;
+                    //             uint32_t neg_number = htonl(number);
+                    //             memcpy(sent_packet.payload, &neg_number,
+                    //                    sizeof(neg_number));
+                    //         }
+                    //     }
+
+                    //     sent_packet.data_type = received_packet.data_type;
+
+                    //     for (int i1 = 0; i1 < nr_clients; ++i1) {
+                    //         for (int j1 = 0; j1 < cl_topics[i1].nr_topics;
+                    //         ++j1) {
+                    //             // daca am gasit topicul trimitem pachetul
+                    //             // clientului
+                    //             if (strcmp(cl_topics[i1].topics[j1],
+                    //                        sent_packet.topic) == 0) {
+                    //                 send_all(poll_fds[i1].fd, &sent_packet,
+                    //                          sizeof(sent_packet));
+                    //                 break;
+                    //             }
+                    //         }
+                    //     }
                 } else {
-                    // se deconecteaza un client
                     int rc = recv_all(poll_fds[i].fd, &received_packet,
                                       sizeof(received_packet));
                     DIE(rc < 0, "recv");
 
+                    // se deconecteaza un client(exit)
                     if (rc == 0) {
                         printf("Client %s disconnected.\n", ids[i]);
                         free(ids[i]);
@@ -166,6 +228,53 @@ void run_server(int listen_tcp, int listen_udp) {
                         num_sockets--;
                         poll_fds = realloc(poll_fds,
                                            sizeof(struct pollfd) * num_sockets);
+                    } else {
+                        // am primit un mesaj(subscribe)
+                        if (received_packet.data_type == 1) {
+                            // id - ul ids[i]
+                            for (int w = 0; w < nr_clients; ++w) {
+                                // caut clientul cu id-ul potrivit in
+                                // structura
+                                // ce retine topicurile pentru fiecare
+                                // client
+                                if (strcmp(cl_topics[w].id, ids[i]) == 0) {
+                                    // add_topic(&cl_topics[w],
+                                    //           received_packet.topic);
+                                    // verificam daca clientul este deja abonat
+                                    // la topicul acela
+                                    int found = 0;
+                                    for (int w2 = 0;
+                                         w2 < cl_topics[w].nr_topics; ++w2) {
+                                        if (strcmp(cl_topics[w].topics[w2],
+                                                   received_packet.topic) ==
+                                            0) {
+                                            found = 1;
+                                            break;
+                                        }
+                                    }
+
+                                    // daca nu este abonat il abonam
+                                    if (!found) {
+                                        strcpy(
+                                            cl_topics[w]
+                                                .topics[cl_topics[w].nr_topics],
+                                            received_packet.topic);
+                                        cl_topics[w].nr_topics++;
+                                    }
+                                    // printf("ids[i] = %s este abonat la:\n",
+                                    //        ids[i]);
+
+                                    // for (int w2 = 0;
+                                    //      w2 < cl_topics[w].nr_topics; ++w2) {
+                                    //     printf("%s ",
+                                    //     cl_topics[w].topics[w2]);
+                                    // }
+
+                                    // printf("\n");
+                                    break;
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -213,7 +322,7 @@ int main(int argc, char *argv[]) {
     DIE(rc < 0, "bind");
 
     // obtinem un socket UDP pentru receptionarea conexiunilor
-    const int listen_udp = socket(AF_INET, SOCK_STREAM, 0);
+    const int listen_udp = socket(AF_INET, SOCK_DGRAM, 0);
     DIE(listen_udp < 0, "socket");
 
     // facem adresa socket-ului reutilizabila, ca sa nu primim eroare in caz

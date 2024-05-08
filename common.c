@@ -17,8 +17,8 @@ int recv_all(int sockfd, void *buffer, size_t len) {
         if (bytes <= 0) {
             return bytes_received;
         }
-        bytes_received += bytes;
         bytes_remaining -= bytes;
+        bytes_received += bytes;
     }
 
     return bytes_received;
@@ -39,8 +39,8 @@ int send_all(int sockfd, void *buffer, size_t len) {
         if (bytes <= 0) {
             return bytes_sent;
         }
-        bytes_sent += bytes;
         bytes_remaining -= bytes;
+        bytes_sent += bytes;
     }
 
     return bytes_sent;
