@@ -70,6 +70,18 @@ void run_client(int sockfd, char *argv[]) {
                                    received_packet.port, received_packet.topic,
                                    "SHORT_REAL", received_packet.payload);
                             break;
+                        case 2:
+                            printf("%s:%u - %s - %s - %s\n",
+                                   inet_ntoa(received_packet.ip_address),
+                                   received_packet.port, received_packet.topic,
+                                   "FLOAT", received_packet.payload);
+                            break;
+                        case 3:
+                            printf("%s:%u - %s - %s - %s\n",
+                                   inet_ntoa(received_packet.ip_address),
+                                   received_packet.port, received_packet.topic,
+                                   "STRING", received_packet.payload);
+                            break;
                     }
                 } else {
                     // mesaje de la tastatura
@@ -89,6 +101,16 @@ void run_client(int sockfd, char *argv[]) {
                              sizeof(subscribe_packet), 0);
                         printf("Subscribed to topic %s\n",
                                subscribe_packet.topic);
+                    } else if (strncmp("unsubscribe", buff_msg, 11) == 0) {
+                        udp_msg_received unsubscribe_packet;
+                        strcpy(unsubscribe_packet.topic, buff_msg + 12);
+                        // tipul pachetului pe care il trimit
+                        unsubscribe_packet.data_type = 0;
+                        // trimitem pachetul
+                        send(sockfd, &unsubscribe_packet,
+                             sizeof(unsubscribe_packet), 0);
+                        printf("Unsubscribed from topic %s\n",
+                               unsubscribe_packet.topic);
                     }
                 }
             }

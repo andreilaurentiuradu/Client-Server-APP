@@ -180,8 +180,9 @@ void run_server(int listen_tcp, int listen_udp) {
                     memset(sent_packet.topic, 0, 51);
                     memset(sent_packet.payload, 0, 1500);
                     strncpy(sent_packet.topic, received_packet.topic, 51);
-                    // INT
+
                     switch (received_packet.data_type) {
+                        // INT
                         case 0:
                             // bitul de semn
                             char bit_sgn = received_packet.payload[0];
@@ -197,11 +198,44 @@ void run_server(int listen_tcp, int listen_udp) {
                                 sprintf(sent_packet.payload, "%d", number);
                             }
                             break;
+                        // SHORRT_REAL
                         case 1:
                             uint16_t number2 =
                                 ntohs(*((uint16_t *)received_packet.payload));
                             sprintf(sent_packet.payload, "%.2f",
                                     1.0 * number2 / 100);
+                            break;
+                        // FLOAT
+                        case 2:
+                            // bitul de semn
+                            char bit_sgn2 = received_packet.payload[0];
+                            // numarul
+                            uint32_t modu = ntohl(
+                                *((uint32_t *)(received_packet.payload + 1)));
+                            uint8_t decimals =
+                                (*((uint8_t *)(received_packet.payload + 1 +
+                                               sizeof(uint32_t))));
+                            float number3 = modu * 1.0;
+
+                            for (int w = 1; w <= decimals; ++w) {
+                                number3 /= 10;
+                            }
+
+                            if (bit_sgn2 == 1) {
+                                // daca e negativ
+                                sprintf(sent_packet.payload, "%.*f", decimals,
+                                        -number3);
+                            } else {
+                                // daca e pozitiv
+                                sprintf(sent_packet.payload, "%.*f", decimals,
+                                        number3);
+                            }
+                            break;
+                        // STRING
+                        case 3:
+                            char sir[1501] = {0};
+                            strcpy(sir, received_packet.payload);
+                            sprintf(sent_packet.payload, "%s", sir);
                             break;
                     }
 
@@ -241,31 +275,30 @@ void run_server(int listen_tcp, int listen_udp) {
                         poll_fds = realloc(poll_fds,
                                            sizeof(struct pollfd) * num_sockets);
                     } else {
-                        // am primit un mesaj(subscribe)
-                        if (received_packet.data_type == 1) {
-                            // id - ul ids[i]
-                            for (int w = 0; w < nr_clients; ++w) {
-                                // caut clientul cu id-ul potrivit in
-                                // structura
-                                // ce retine topicurile pentru fiecare
-                                // client
-                                if (strcmp(cl_topics[w].id, ids[i]) == 0) {
-                                    // add_topic(&cl_topics[w],
-                                    //           received_packet.topic);
-                                    // verificam daca clientul este deja abonat
-                                    // la topicul acela
-                                    int found = 0;
-                                    for (int w2 = 0;
-                                         w2 < cl_topics[w].nr_topics; ++w2) {
-                                        if (strcmp(cl_topics[w].topics[w2],
-                                                   received_packet.topic) ==
-                                            0) {
-                                            found = 1;
-                                            break;
-                                        }
+                        // id - ul ids[i]
+                        for (int w = 0; w < nr_clients; ++w) {
+                            // caut clientul cu id-ul potrivit in
+                            // structura
+                            // ce retine topicurile pentru fiecare
+                            // client
+                            if (strcmp(cl_topics[w].id, ids[i]) == 0) {
+                                // add_topic(&cl_topics[w],
+                                //           received_packet.topic);
+                                // verificam daca clientul este deja abonat
+                                // la topicul acela
+                                int found = 0;
+                                for (int w2 = 0; w2 < cl_topics[w].nr_topics;
+                                     ++w2) {
+                                    if (strcmp(cl_topics[w].topics[w2],
+                                               received_packet.topic) == 0) {
+                                        found = w2;
+                                        break;
                                     }
+                                }
 
-                                    // daca nu este abonat il abonam
+                                // daca nu este abonat il abonam
+                                // am primit un mesaj(subscribe)
+                                if (received_packet.data_type == 1) {
                                     if (!found) {
                                         memset(
                                             cl_topics[w]
@@ -277,8 +310,18 @@ void run_server(int listen_tcp, int listen_udp) {
                                             received_packet.topic);
                                         cl_topics[w].nr_topics++;
                                     }
-                                    break;
+                                } else if (received_packet.data_type == 0) {
+                                    // daca trebuie sa dam unsubscribe
+                                    if (found) {
+                                        for (int t = found + 1;
+                                             t < cl_topics[w].nr_topics; ++t) {
+                                            strcpy(cl_topics[w].topics[t],
+                                                   cl_topics[w].topics[t + 1]);
+                                        }
+                                        cl_topics[w].nr_topics--;
+                                    }
                                 }
+                                break;
                             }
                         }
                     }
