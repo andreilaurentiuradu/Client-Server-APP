@@ -8,6 +8,7 @@
 #include <arpa/inet.h>
 #include <errno.h>
 #include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <poll.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -80,6 +81,12 @@ void run_server(int listen_tcp, int listen_udp) {
                     const int cfd1 = accept(
                         listen_tcp, (struct sockaddr *)&cli_addr, &cli_len);
                     DIE(cfd1 < 0, "accept");
+
+                    int flag = 1;
+                    // dezactivam algoritmul lui Nagle
+                    DIE(setsockopt(cfd1, IPPROTO_TCP, TCP_NODELAY, &flag,
+                                   sizeof(int)) < 0,
+                        "Nagle error\n");
 
                     // primim mesajul(id-ul)
                     char buffer_msg[1501];
@@ -156,57 +163,62 @@ void run_server(int listen_tcp, int listen_udp) {
                         return;
                     }
                 } else if (poll_fds[i].fd == listen_udp) {
-                    //     /* am primit o cerere de conexiune pe socketul de
-                    //    listen_udp, pe care o acceptam */
-                    //     socklen_t udp_len = 0;
+                    /* am primit o cerere de conexiune pe socketul de
+                   listen_udp, pe care o acceptam */
+                    socklen_t udp_len = 0;
 
-                    //     struct sockaddr_in serv_addr;
-                    //     int rc_udp = recvfrom(
-                    //         listen_udp, &received_packet,
-                    //         sizeof(received_packet), 0, (struct sockaddr
-                    //         *)&serv_addr, &udp_len);
-                    //     DIE(rc_udp < 0, "recv");
+                    struct sockaddr_in serv_addr;
+                    int rc_udp = recvfrom(
+                        listen_udp, &received_packet, sizeof(received_packet),
+                        0, (struct sockaddr *)&serv_addr, &udp_len);
+                    DIE(rc_udp < 0, "recv");
 
-                    //     // cream packetul udp de sent
-                    //     udp_msg sent_packet;
-                    //     sent_packet.ip_address = serv_addr.sin_addr;
-                    //     sent_packet.port = htons(serv_addr.sin_port);
-                    //     memset(sent_packet.topic, 0, 50);
-                    //     strcpy(sent_packet.topic, received_packet.topic);
+                    // cream packetul udp de sent
+                    udp_msg sent_packet;
+                    sent_packet.ip_address = serv_addr.sin_addr;
+                    sent_packet.port = htons(serv_addr.sin_port);
+                    memset(sent_packet.topic, 0, 51);
+                    memset(sent_packet.payload, 0, 1500);
+                    strncpy(sent_packet.topic, received_packet.topic, 51);
+                    // INT
+                    switch (received_packet.data_type) {
+                        case 0:
+                            // bitul de semn
+                            char bit_sgn = received_packet.payload[0];
+                            // numarul
+                            uint32_t number = ntohl(
+                                *((uint32_t *)(received_packet.payload + 1)));
 
-                    //     // INT
-                    //     if (received_packet.data_type == 0) {
-                    //         // bitul de semn
-                    //         char bit_sgn = received_packet.payload[0];
-                    //         // numarul
-                    //         uint32_t number =
-                    //             ntohl(*((uint32_t *)(received_packet.payload
-                    //             + 1)));
+                            if (bit_sgn == 1) {
+                                // daca e negativ
+                                sprintf(sent_packet.payload, "%d", -number);
+                            } else {
+                                // daca e pozitiv
+                                sprintf(sent_packet.payload, "%d", number);
+                            }
+                            break;
+                        case 1:
+                            uint16_t number2 =
+                                ntohs(*((uint16_t *)received_packet.payload));
+                            sprintf(sent_packet.payload, "%.2f",
+                                    1.0 * number2 / 100);
+                            break;
+                    }
 
-                    //         // daca e negativ
-                    //         if (bit_sgn == 1) {
-                    //             number = -number;
-                    //             uint32_t neg_number = htonl(number);
-                    //             memcpy(sent_packet.payload, &neg_number,
-                    //                    sizeof(neg_number));
-                    //         }
-                    //     }
+                    sent_packet.data_type = received_packet.data_type;
 
-                    //     sent_packet.data_type = received_packet.data_type;
-
-                    //     for (int i1 = 0; i1 < nr_clients; ++i1) {
-                    //         for (int j1 = 0; j1 < cl_topics[i1].nr_topics;
-                    //         ++j1) {
-                    //             // daca am gasit topicul trimitem pachetul
-                    //             // clientului
-                    //             if (strcmp(cl_topics[i1].topics[j1],
-                    //                        sent_packet.topic) == 0) {
-                    //                 send_all(poll_fds[i1].fd, &sent_packet,
-                    //                          sizeof(sent_packet));
-                    //                 break;
-                    //             }
-                    //         }
-                    //     }
+                    for (int i1 = 0; i1 < nr_clients; ++i1) {
+                        for (int j1 = 0; j1 < cl_topics[i1].nr_topics; ++j1) {
+                            // daca am gasit topicul trimitem pachetul
+                            // clientului
+                            if (strncmp(cl_topics[i1].topics[j1],
+                                        sent_packet.topic, 50) == 0) {
+                                send_all(poll_fds[3 + i1].fd, &sent_packet,
+                                         sizeof(sent_packet));
+                                break;
+                            }
+                        }
+                    }
                 } else {
                     int rc = recv_all(poll_fds[i].fd, &received_packet,
                                       sizeof(received_packet));
@@ -255,22 +267,16 @@ void run_server(int listen_tcp, int listen_udp) {
 
                                     // daca nu este abonat il abonam
                                     if (!found) {
+                                        memset(
+                                            cl_topics[w]
+                                                .topics[cl_topics[w].nr_topics],
+                                            0, 51);
                                         strcpy(
                                             cl_topics[w]
                                                 .topics[cl_topics[w].nr_topics],
                                             received_packet.topic);
                                         cl_topics[w].nr_topics++;
                                     }
-                                    // printf("ids[i] = %s este abonat la:\n",
-                                    //        ids[i]);
-
-                                    // for (int w2 = 0;
-                                    //      w2 < cl_topics[w].nr_topics; ++w2) {
-                                    //     printf("%s ",
-                                    //     cl_topics[w].topics[w2]);
-                                    // }
-
-                                    // printf("\n");
                                     break;
                                 }
                             }
@@ -336,6 +342,11 @@ int main(int argc, char *argv[]) {
     rc = bind(listen_udp, (const struct sockaddr *)&serv_addr,
               sizeof(serv_addr));
     DIE(rc < 0, "bind");
+
+    // dezactivam algoritmul lui Nagle
+    DIE(setsockopt(listen_tcp, IPPROTO_TCP, TCP_NODELAY, &enable, sizeof(int)) <
+            0,
+        "Nagle error\n");
 
     // pornim serverul
     run_server(listen_tcp, listen_udp);

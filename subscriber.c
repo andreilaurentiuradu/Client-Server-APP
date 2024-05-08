@@ -53,16 +53,23 @@ void run_client(int sockfd, char *argv[]) {
                     // mesajul
                     rc = recv_all(sockfd, &received_packet,
                                   sizeof(received_packet));
-                    printf("%d\n", (int)received_packet.data_type);
                     if (rc <= 0) {
                         return;
                     }
 
-                    if (received_packet.data_type == 0) {
-                        printf("%s:%u - %s - %s - %s\n",
-                               inet_ntoa(received_packet.ip_address),
-                               received_packet.port, received_packet.topic,
-                               "INT", received_packet.payload);
+                    switch (received_packet.data_type) {
+                        case 0:
+                            printf("%s:%u - %s - %s - %s\n",
+                                   inet_ntoa(received_packet.ip_address),
+                                   received_packet.port, received_packet.topic,
+                                   "INT", received_packet.payload);
+                            break;
+                        case 1:
+                            printf("%s:%u - %s - %s - %s\n",
+                                   inet_ntoa(received_packet.ip_address),
+                                   received_packet.port, received_packet.topic,
+                                   "SHORT_REAL", received_packet.payload);
+                            break;
                     }
                 } else {
                     // mesaje de la tastatura
