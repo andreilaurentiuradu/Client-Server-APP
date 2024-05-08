@@ -46,6 +46,8 @@ un client, id-ul clientului si topicurile
 
 common.c contine 2 functii pentru trimiterea, respectiv primirea a unui
 specific de bytes din buffer
+common.h contine headerele functiilor din common.c si un macro ce reprezinta
+dimensiunea maxima a mesajului din buffer
 
 Client
 Programul subscriber.c serveste ca aplicatie client care se conecteaza la 
